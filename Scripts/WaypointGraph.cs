@@ -22,18 +22,44 @@ public class WaypointGraph : MonoBehaviour
             DiscoverWaypoints();
         }
         
+        if (startPoint == null && waypoints.Count > 0)
+        {
+            startPoint = waypoints[0];
+        }
+        
+        if (goalPoints.Count == 0 && waypoints.Count > 1)
+        {
+            for (int i = 1; i < waypoints.Count; i++)
+            {
+                if (goalPoints.Count < 5)
+                    goalPoints.Add(waypoints[i]);
+            }
+        }
+        
         if (waypoints.Count > 0)
         {
             AutoConnectWaypoints();
-            Debug.Log("WaypointGraph initialized with " + waypoints.Count + " waypoints");
+            Debug.Log("WaypointGraph initialized with " + waypoints.Count + " waypoints, start: " + (startPoint != null ? startPoint.nodeIndex.ToString() : "null") + ", goals: " + goalPoints.Count);
         }
     }
 
     void DiscoverWaypoints()
     {
         var found = FindObjectsOfType<Waypoint>();
-        waypoints = found.OrderBy(w => w.nodeIndex).ToList();
-        Debug.Log("Discovered " + waypoints.Count + " waypoints");
+        
+        waypoints = found.OrderBy(w => w.transform.position.x).ThenBy(w => w.transform.position.z).ToList();
+        
+        for (int i = 0; i < waypoints.Count; i++)
+        {
+            waypoints[i].nodeIndex = i;
+        }
+        
+        string wpList = "";
+        foreach (var wp in waypoints)
+        {
+            wpList += wp.nodeIndex + "(" + wp.name + ") ";
+        }
+        Debug.Log("Discovered " + waypoints.Count + " waypoints: " + wpList);
     }
 
     void AutoConnectWaypoints()
