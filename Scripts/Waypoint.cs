@@ -17,6 +17,25 @@ public class Waypoint : MonoBehaviour
 
     public float fCost => gCost + hCost;
 
+    void Start()
+    {
+        UpdateColor();
+    }
+
+    void UpdateColor()
+    {
+        var renderer = GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            if (nodeIndex == 0)
+                renderer.material.color = Color.green;
+            else if (nodeIndex == WaypointGraph.Instance.waypoints.Count - 1)
+                renderer.material.color = Color.red;
+            else
+                renderer.material.color = Color.blue;
+        }
+    }
+
     public void ResetPathfindingData()
     {
         gCost = 0;
