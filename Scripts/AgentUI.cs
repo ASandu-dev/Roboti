@@ -5,9 +5,9 @@ public class AgentUI : MonoBehaviour
 {
     public Text timeText;
     public Text distanceText;
-    public Text tasksText;
+    public Text deliveredText;
     public Text stateText;
-    public Text cargoText; // New field for cargo count
+    public Text cargoText;
 
     public CargoCubeController cubeController;
 
@@ -19,16 +19,14 @@ public class AgentUI : MonoBehaviour
             return;
         }
 
-        // Using public properties from CargoCubeController
-        timeText.text = "Time: " + cubeController.timer.ToString("F2") + "s";
-        distanceText.text = "Distance: " + cubeController.totalDistance.ToString("F2") + "m";
-        tasksText.text = "Tasks This Run: " + cubeController.GetTasksCompleted() + "/9";
+        timeText.text = "Time: " + cubeController.timer.ToString("F1") + "s";
+        distanceText.text = "Distance: " + cubeController.totalDistance.ToString("F1") + "m";
+        deliveredText.text = "Delivered: " + cubeController.tasksCompleted;
         stateText.text = "State: " + cubeController.GetCurrentState();
         
-        // Update cargo text
         if (cargoText != null)
         {
-            cargoText.text = "Cargo: " + cubeController.cargoCount;
+            cargoText.text = "Cargo Left: " + cubeController.cargoCount;
         }
     }
 }
