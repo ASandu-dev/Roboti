@@ -15,8 +15,9 @@ public class CargoCubeController : MonoBehaviour
     
     private State currentState = State.Idle;
     private bool hasCargo = false;
-    private List<Waypoint> deliveryPoints;
+    private int nextDeliveryIndex = 1;
     private int currentDeliveryIndex = 0;
+    private bool returningToStart = false;
 
     public float timer = 0f;
     public float totalDistance = 0f;
@@ -35,8 +36,14 @@ public class CargoCubeController : MonoBehaviour
 
     void Start()
     {
-        deliveryPoints = new List<Waypoint>();
         lastPosition = transform.position;
+        
+        Waypoint startWp = WaypointGraph.Instance.GetStartPoint();
+        if (startWp != null)
+        {
+            currentWaypoint = startWp;
+            transform.position = startWp.transform.position;
+        }
         
         StartCoroutine(CubeStateMachine());
     }
@@ -50,14 +57,11 @@ public class CargoCubeController : MonoBehaviour
 
     IEnumerator CubeStateMachine()
     {
-        yield return new WaitForSeconds(1f);
+        yield return new WaitForSeconds(0.5f);
 
-        Waypoint startWp = WaypointGraph.Instance.GetStartPoint();
-        Waypoint pickupWp = WaypointGraph.Instance.waypoints.Count > 0 ? WaypointGraph.Instance.waypoints[0] : null;
-
-        if (startWp == null || pickupWp == null)
+        if (WaypointGraph.Instance.waypoints.Count < 2)
         {
-            Debug.LogError("No waypoints found!");
+            Debug.LogError("Need at least 2 waypoints!");
             yield break;
         }
 
@@ -67,44 +71,28 @@ public class CargoCubeController : MonoBehaviour
             {
                 case State.Idle:
                     tasksCompleted = 0;
-                    cargoCount = 0;
-                    currentDeliveryIndex = 0;
+                    cargoCount = WaypointGraph.Instance.waypoints.Count - 1;
+                    nextDeliveryIndex = 1;
+                    returningToStart = false;
                     
-                    SetupDeliveryPoints();
-                    currentState = State.MovingToPickup;
-                    break;
-
-                case State.MovingToPickup:
-                    currentPath = AStarPathfinder.FindPath(currentWaypoint != null ? currentWaypoint : startWp, pickupWp);
+                    Waypoint startWp = WaypointGraph.Instance.waypoints[0];
+                    currentWaypoint = startWp;
+                    transform.position = startWp.transform.position;
                     
-                    if (currentPath.Count > 0)
-                    {
-                        yield return StartCoroutine(FollowPath());
-                    }
-                    
-                    hasCargo = true;
-                    cargoCount = deliveryPoints.Count;
-                    Debug.Log("Picked up cargo. Stock: " + cargoCount);
-                    
-                    if (deliveryPoints.Count > 0)
-                    {
-                        currentDeliveryIndex = 0;
-                        currentState = State.DeliveringCargo;
-                    }
-                    else
-                    {
-                        currentState = State.ReturningToBase;
-                    }
+                    Debug.Log("Starting from waypoint 0. Cargo loaded: " + cargoCount);
+                    currentState = State.DeliveringCargo;
                     break;
 
                 case State.DeliveringCargo:
-                    if (currentDeliveryIndex >= deliveryPoints.Count)
+                    if (nextDeliveryIndex >= WaypointGraph.Instance.waypoints.Count)
                     {
                         currentState = State.ReturningToBase;
                         break;
                     }
                     
-                    Waypoint deliveryWp = deliveryPoints[currentDeliveryIndex];
+                    Waypoint deliveryWp = WaypointGraph.Instance.waypoints[nextDeliveryIndex];
+                    Debug.Log("Moving to waypoint " + deliveryWp.nodeIndex);
+                    
                     currentPath = AStarPathfinder.FindPath(currentWaypoint, deliveryWp);
                     
                     if (currentPath.Count > 0)
@@ -112,44 +100,40 @@ public class CargoCubeController : MonoBehaviour
                         yield return StartCoroutine(FollowPath());
                     }
                     
-                    Debug.Log("Delivered cargo to point " + deliveryWp.nodeIndex);
-                    cargoCount--;
+                    Debug.Log("Reached waypoint " + deliveryWp.nodeIndex);
                     tasksCompleted++;
                     currentDeliveryIndex++;
+                    cargoCount--;
+                    nextDeliveryIndex++;
                     
-                    if (currentDeliveryIndex >= deliveryPoints.Count)
+                    if (nextDeliveryIndex >= WaypointGraph.Instance.waypoints.Count)
                     {
                         currentState = State.ReturningToBase;
                     }
                     break;
 
                 case State.ReturningToBase:
-                    currentPath = AStarPathfinder.FindPath(currentWaypoint, pickupWp);
-                    
-                    if (currentPath.Count > 0)
+                    if (!returningToStart)
                     {
-                        yield return StartCoroutine(FollowPath());
+                        returningToStart = true;
+                        Waypoint pickupWp = WaypointGraph.Instance.waypoints[0];
+                        Debug.Log("Returning to start point 0");
+                        
+                        currentPath = AStarPathfinder.FindPath(currentWaypoint, pickupWp);
+                        
+                        if (currentPath.Count > 0)
+                        {
+                            yield return StartCoroutine(FollowPath());
+                        }
+                        
+                        Debug.Log("Returned to start. Cycle complete.");
                     }
                     
-                    Debug.Log("Returned to base. Cycle complete.");
+                    yield return new WaitForSeconds(2f);
                     currentState = State.Idle;
                     break;
             }
             yield return null;
-        }
-    }
-
-    void SetupDeliveryPoints()
-    {
-        deliveryPoints.Clear();
-        var goals = WaypointGraph.Instance.GetGoalPoints();
-        
-        foreach (var goal in goals)
-        {
-            if (goal.nodeIndex != 0)
-            {
-                deliveryPoints.Add(goal);
-            }
         }
     }
 
@@ -161,25 +145,20 @@ public class CargoCubeController : MonoBehaviour
         
         while (pathIndex < currentPath.Count)
         {
-            if (IsObstacleAhead())
+            while (IsObstacleAhead())
             {
                 currentState = State.WaitingForObstacle;
                 Debug.Log("Obstacle detected! Waiting...");
-                
                 yield return new WaitForSeconds(0.5f);
                 
                 if (!IsObstacleAhead())
                 {
-                    currentState = hasCargo ? State.DeliveringCargo : State.MovingToPickup;
                     Debug.Log("Path is clear. Resuming.");
+                    break;
                 }
-                else
-                {
-                    yield return new WaitForSeconds(0.5f);
-                }
-                yield return null;
-                continue;
             }
+
+            if (pathIndex >= currentPath.Count) break;
 
             Waypoint targetNode = currentPath[pathIndex];
             Vector3 direction = (targetNode.transform.position - transform.position).normalized;
