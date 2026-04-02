@@ -45,7 +45,7 @@ public class WaypointGraph : MonoBehaviour
 
     void DiscoverWaypoints()
     {
-        var found = FindObjectsOfType<Waypoint>();
+        var found = FindObjectsByType<Waypoint>(FindObjectsSortMode.None);
         
         waypoints = found.OrderBy(w => w.transform.position.x).ThenBy(w => w.transform.position.z).ToList();
         
