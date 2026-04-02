@@ -91,6 +91,7 @@ public class CargoCubeController : MonoBehaviour
                     }
                     
                     Waypoint deliveryWp = WaypointGraph.Instance.waypoints[nextDeliveryIndex];
+                    targetWaypoint = deliveryWp;
                     Debug.Log("Moving to waypoint " + deliveryWp.nodeIndex);
                     
                     currentPath = AStarPathfinder.FindPath(currentWaypoint, deliveryWp);
@@ -117,6 +118,7 @@ public class CargoCubeController : MonoBehaviour
                     {
                         returningToStart = true;
                         Waypoint pickupWp = WaypointGraph.Instance.waypoints[0];
+                        targetWaypoint = pickupWp;
                         Debug.Log("Returning to start point 0");
                         
                         currentPath = AStarPathfinder.FindPath(currentWaypoint, pickupWp);
@@ -142,19 +144,37 @@ public class CargoCubeController : MonoBehaviour
         if (currentPath.Count == 0) yield break;
 
         pathIndex = 0;
+        float waitTime = 0f;
+        float maxWaitTime = 5f;
         
         while (pathIndex < currentPath.Count)
         {
-            while (IsObstacleAhead())
+            if (IsObstacleAhead())
             {
                 currentState = State.WaitingForObstacle;
                 Debug.Log("Obstacle detected! Waiting...");
-                yield return new WaitForSeconds(0.5f);
+                waitTime = 0f;
                 
-                if (!IsObstacleAhead())
+                while (IsObstacleAhead() && waitTime < maxWaitTime)
+                {
+                    yield return new WaitForSeconds(0.5f);
+                    waitTime += 0.5f;
+                }
+                
+                if (waitTime >= maxWaitTime)
+                {
+                    Debug.Log("Obstacle blocking too long. Finding new path...");
+                    yield return StartCoroutine(RecalculatePath());
+                    if (currentPath.Count == 0)
+                    {
+                        Debug.Log("No path found!");
+                        yield break;
+                    }
+                    pathIndex = 0;
+                }
+                else
                 {
                     Debug.Log("Path is clear. Resuming.");
-                    break;
                 }
             }
 
@@ -180,9 +200,40 @@ public class CargoCubeController : MonoBehaviour
         }
     }
 
+    IEnumerator RecalculatePath()
+    {
+        if (targetWaypoint != null)
+        {
+            currentPath = AStarPathfinder.FindPath(currentWaypoint, targetWaypoint);
+            Debug.Log("Path recalculated. New path has " + currentPath.Count + " nodes.");
+        }
+        yield return null;
+    }
+
     bool IsObstacleAhead()
     {
-        return Physics.Raycast(transform.position, transform.forward, obstacleCheckDistance, obstacleLayer);
+        Vector3 rayOrigin = transform.position + Vector3.up * 0.5f;
+        Vector3 direction;
+        
+        if (pathIndex < currentPath.Count && currentPath[pathIndex] != null)
+        {
+            direction = (currentPath[pathIndex].transform.position - transform.position).normalized;
+        }
+        else
+        {
+            direction = transform.forward;
+        }
+        
+        RaycastHit hit;
+        if (Physics.Raycast(rayOrigin, direction, out hit, obstacleCheckDistance, obstacleLayer))
+        {
+            if (hit.collider.gameObject != gameObject)
+            {
+                Debug.Log("Obstacle detected: " + hit.collider.name);
+                return true;
+            }
+        }
+        return false;
     }
 
     public string GetCurrentState() => currentState.ToString();
