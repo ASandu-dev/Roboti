@@ -74,12 +74,14 @@ public class CargoCubeController : MonoBehaviour
                     cargoCount = WaypointGraph.Instance.waypoints.Count - 1;
                     nextDeliveryIndex = 1;
                     returningToStart = false;
+                    pathIndex = 0;
+                    currentPath.Clear();
                     
                     Waypoint startWp = WaypointGraph.Instance.waypoints[0];
                     currentWaypoint = startWp;
                     transform.position = startWp.transform.position;
                     
-                    Debug.Log("Starting from waypoint 0. Cargo loaded: " + cargoCount);
+                    Debug.Log("=== IDLE: Starting new cycle. Total waypoints: " + WaypointGraph.Instance.waypoints.Count);
                     currentState = State.DeliveringCargo;
                     break;
 
@@ -92,26 +94,26 @@ public class CargoCubeController : MonoBehaviour
                     
                     Waypoint deliveryWp = WaypointGraph.Instance.waypoints[nextDeliveryIndex];
                     targetWaypoint = deliveryWp;
-                    Debug.Log("Moving to waypoint " + deliveryWp.nodeIndex + " from " + (currentWaypoint != null ? currentWaypoint.nodeIndex.ToString() : "null"));
+                    Debug.Log("=== Moving to waypoint " + deliveryWp.nodeIndex + " from " + (currentWaypoint != null ? currentWaypoint.nodeIndex.ToString() : "null"));
                     
                     if (currentWaypoint == null)
                     {
-                        currentWaypoint = WaypointGraph.Instance.waypoints[nextDeliveryIndex - 1];
-                        if (currentWaypoint == null)
-                            currentWaypoint = WaypointGraph.Instance.waypoints[0];
+                        currentWaypoint = WaypointGraph.Instance.waypoints[0];
                     }
                     
                     currentPath = AStarPathfinder.FindPath(currentWaypoint, deliveryWp);
                     
+                    Debug.Log("Path found: " + currentPath.Count + " nodes");
+                    
                     if (currentPath.Count == 0)
                     {
-                        Debug.LogWarning("No path found from " + currentWaypoint.nodeIndex + " to " + deliveryWp.nodeIndex + ". Trying direct.");
+                        Debug.LogWarning("No path found - going directly");
                         currentPath = new List<Waypoint> { deliveryWp };
                     }
                     
                     yield return StartCoroutine(FollowPath());
                     
-                    Debug.Log("Reached waypoint " + deliveryWp.nodeIndex);
+                    Debug.Log("=== Reached waypoint " + deliveryWp.nodeIndex);
                     tasksCompleted++;
                     currentDeliveryIndex++;
                     cargoCount--;
@@ -153,11 +155,17 @@ public class CargoCubeController : MonoBehaviour
 
     IEnumerator FollowPath()
     {
-        if (currentPath.Count == 0) yield break;
+        if (currentPath.Count == 0)
+        {
+            Debug.LogWarning("FollowPath: empty path!");
+            yield break;
+        }
 
         pathIndex = 0;
         float waitTime = 0f;
         float maxWaitTime = 5f;
+        
+        Debug.Log("FollowPath started with " + currentPath.Count + " nodes");
         
         while (pathIndex < currentPath.Count)
         {
@@ -196,6 +204,10 @@ public class CargoCubeController : MonoBehaviour
             if (pathIndex >= currentPath.Count) break;
 
             Waypoint targetNode = currentPath[pathIndex];
+            float dist = Vector3.Distance(transform.position, targetNode.transform.position);
+            
+            Debug.Log("Moving to node " + pathIndex + " (distance: " + dist + ")");
+            
             Vector3 direction = (targetNode.transform.position - transform.position).normalized;
             
             transform.position = Vector3.MoveTowards(transform.position, targetNode.transform.position, speed * Time.deltaTime);
@@ -205,14 +217,17 @@ public class CargoCubeController : MonoBehaviour
                 transform.rotation = Quaternion.LookRotation(direction);
             }
 
-            if (Vector3.Distance(transform.position, targetNode.transform.position) < 0.2f)
+            if (dist < 0.2f)
             {
+                Debug.Log("Reached node " + pathIndex);
                 currentWaypoint = targetNode;
                 pathIndex++;
             }
 
             yield return null;
         }
+        
+        Debug.Log("FollowPath completed");
     }
 
     IEnumerator RecalculatePath()
@@ -227,10 +242,13 @@ public class CargoCubeController : MonoBehaviour
 
     bool IsObstacleAhead()
     {
+        if (currentPath.Count == 0 || pathIndex >= currentPath.Count)
+            return false;
+            
         Vector3 rayOrigin = transform.position + Vector3.up * 0.5f;
         Vector3 direction;
         
-        if (pathIndex < currentPath.Count && currentPath[pathIndex] != null)
+        if (currentPath[pathIndex] != null)
         {
             direction = (currentPath[pathIndex].transform.position - transform.position).normalized;
         }
