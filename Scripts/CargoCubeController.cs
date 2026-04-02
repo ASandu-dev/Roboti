@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class CargoCubeController : MonoBehaviour
 {
@@ -9,6 +10,8 @@ public class CargoCubeController : MonoBehaviour
 
     private int nextWaypointIndex = 1;
     private State currentState = State.Idle;
+    private List<int> visitedWaypointIndices = new List<int>();
+    private int reverseIndex = 0;
 
     public float timer = 0f;
     public float totalDistance = 0f;
@@ -57,6 +60,8 @@ public class CargoCubeController : MonoBehaviour
                     tasksCompleted = 0;
                     cargoCount = WaypointGraph.Instance.waypoints.Count - 1;
                     nextWaypointIndex = 1;
+                    reverseIndex = 0;
+                    visitedWaypointIndices.Clear();
                     
                     transform.position = WaypointGraph.Instance.waypoints[0].transform.position;
                     Debug.Log("=== Cycle start: going to waypoints 1-" + (WaypointGraph.Instance.waypoints.Count - 1));
@@ -66,7 +71,7 @@ public class CargoCubeController : MonoBehaviour
                 case State.DeliveringCargo:
                     if (nextWaypointIndex >= WaypointGraph.Instance.waypoints.Count)
                     {
-                        Debug.Log("=== All delivered, returning to base");
+                        Debug.Log("=== All delivered, returning to base via same path");
                         currentState = State.ReturningToBase;
                         break;
                     }
@@ -78,25 +83,34 @@ public class CargoCubeController : MonoBehaviour
                     
                     tasksCompleted++;
                     cargoCount--;
+                    visitedWaypointIndices.Add(target.nodeIndex);
                     Debug.Log("=== Reached waypoint " + target.nodeIndex);
                     nextWaypointIndex++;
                     
                     if (nextWaypointIndex >= WaypointGraph.Instance.waypoints.Count)
                     {
-                        Debug.Log("=== All delivered, returning to base");
+                        Debug.Log("=== All delivered, returning to base via same path");
                         currentState = State.ReturningToBase;
                     }
                     break;
 
                 case State.ReturningToBase:
-                    Waypoint start = WaypointGraph.Instance.waypoints[0];
-                    Debug.Log("=== Returning to waypoint 0");
-                    
-                    yield return StartCoroutine(MoveToWaypoint(start));
-                    
-                    Debug.Log("=== Returned to start. Cycle complete.");
-                    yield return new WaitForSeconds(2f);
-                    currentState = State.Idle;
+                    if (reverseIndex < visitedWaypointIndices.Count)
+                    {
+                        int waypointToVisit = visitedWaypointIndices[visitedWaypointIndices.Count - 1 - reverseIndex];
+                        Waypoint reverseTarget = WaypointGraph.Instance.waypoints[waypointToVisit];
+                        Debug.Log("=== Returning: visiting waypoint " + reverseTarget.nodeIndex);
+                        
+                        yield return StartCoroutine(MoveToWaypoint(reverseTarget));
+                        Debug.Log("=== Visited waypoint " + reverseTarget.nodeIndex);
+                        reverseIndex++;
+                    }
+                    else
+                    {
+                        Debug.Log("=== Returned to start. Cycle complete.");
+                        yield return new WaitForSeconds(2f);
+                        currentState = State.Idle;
+                    }
                     break;
             }
             yield return null;
