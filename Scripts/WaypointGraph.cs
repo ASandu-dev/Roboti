@@ -17,37 +17,46 @@ public class WaypointGraph : MonoBehaviour
 
     void Start()
     {
-        DiscoverWaypoints();
-        AutoConnectWaypoints();
+        if (waypoints.Count == 0)
+        {
+            DiscoverWaypoints();
+        }
+        
+        if (waypoints.Count > 0)
+        {
+            AutoConnectWaypoints();
+            Debug.Log("WaypointGraph initialized with " + waypoints.Count + " waypoints");
+        }
     }
 
     void DiscoverWaypoints()
     {
         var found = FindObjectsOfType<Waypoint>();
         waypoints = found.OrderBy(w => w.nodeIndex).ToList();
+        Debug.Log("Discovered " + waypoints.Count + " waypoints");
     }
 
     void AutoConnectWaypoints()
     {
         if (waypoints.Count < 2) return;
 
+        foreach (var wp in waypoints)
+        {
+            wp.connections.Clear();
+        }
+
         for (int i = 0; i < waypoints.Count; i++)
         {
             var current = waypoints[i];
             
-            int nextIndex = i + 1;
-            if (nextIndex < waypoints.Count)
-            {
-                current.ConnectTo(waypoints[nextIndex]);
-            }
-            
             if (i < waypoints.Count - 1)
             {
-                int alternateIndex = i + 2;
-                if (alternateIndex < waypoints.Count)
-                {
-                    current.ConnectTo(waypoints[alternateIndex]);
-                }
+                current.ConnectTo(waypoints[i + 1]);
+            }
+            
+            if (i < waypoints.Count - 2)
+            {
+                current.ConnectTo(waypoints[i + 2]);
             }
             
             if (i == 0 && waypoints.Count > 3)
@@ -87,7 +96,9 @@ public class WaypointGraph : MonoBehaviour
 
     public Waypoint GetStartPoint()
     {
-        return startPoint != null ? startPoint : (waypoints.Count > 0 ? waypoints[0] : null);
+        if (startPoint != null) return startPoint;
+        if (waypoints.Count > 0) return waypoints[0];
+        return null;
     }
 
     public List<Waypoint> GetGoalPoints()
@@ -107,5 +118,10 @@ public class WaypointGraph : MonoBehaviour
         {
             wp.ResetPathfindingData();
         }
+    }
+
+    public int GetWaypointCount()
+    {
+        return waypoints.Count;
     }
 }
