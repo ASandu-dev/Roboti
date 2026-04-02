@@ -113,15 +113,18 @@ public class CargoCubeController : MonoBehaviour
                     
                     yield return StartCoroutine(FollowPath());
                     
-                    Debug.Log("=== Reached waypoint " + deliveryWp.nodeIndex);
+                    Debug.Log("=== Reached waypoint " + deliveryWp.nodeIndex + ", currentWaypoint is now: " + (currentWaypoint != null ? currentWaypoint.nodeIndex.ToString() : "null"));
                     tasksCompleted++;
                     currentDeliveryIndex++;
                     cargoCount--;
                     nextDeliveryIndex++;
                     
+                    Debug.Log("=== nextDeliveryIndex now: " + nextDeliveryIndex + ", waypoints.Count: " + WaypointGraph.Instance.waypoints.Count);
+                    
                     if (nextDeliveryIndex >= WaypointGraph.Instance.waypoints.Count)
                     {
                         currentState = State.ReturningToBase;
+                        Debug.Log("=== All deliveries done, returning to base");
                     }
                     break;
 
@@ -149,6 +152,7 @@ public class CargoCubeController : MonoBehaviour
                     currentState = State.Idle;
                     break;
             }
+            Debug.Log("=== End of switch, currentState: " + currentState);
             yield return null;
         }
     }
