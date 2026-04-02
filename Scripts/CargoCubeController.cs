@@ -92,14 +92,24 @@ public class CargoCubeController : MonoBehaviour
                     
                     Waypoint deliveryWp = WaypointGraph.Instance.waypoints[nextDeliveryIndex];
                     targetWaypoint = deliveryWp;
-                    Debug.Log("Moving to waypoint " + deliveryWp.nodeIndex);
+                    Debug.Log("Moving to waypoint " + deliveryWp.nodeIndex + " from " + (currentWaypoint != null ? currentWaypoint.nodeIndex.ToString() : "null"));
+                    
+                    if (currentWaypoint == null)
+                    {
+                        currentWaypoint = WaypointGraph.Instance.waypoints[nextDeliveryIndex - 1];
+                        if (currentWaypoint == null)
+                            currentWaypoint = WaypointGraph.Instance.waypoints[0];
+                    }
                     
                     currentPath = AStarPathfinder.FindPath(currentWaypoint, deliveryWp);
                     
-                    if (currentPath.Count > 0)
+                    if (currentPath.Count == 0)
                     {
-                        yield return StartCoroutine(FollowPath());
+                        Debug.LogWarning("No path found from " + currentWaypoint.nodeIndex + " to " + deliveryWp.nodeIndex + ". Trying direct.");
+                        currentPath = new List<Waypoint> { deliveryWp };
                     }
+                    
+                    yield return StartCoroutine(FollowPath());
                     
                     Debug.Log("Reached waypoint " + deliveryWp.nodeIndex);
                     tasksCompleted++;
@@ -123,10 +133,12 @@ public class CargoCubeController : MonoBehaviour
                         
                         currentPath = AStarPathfinder.FindPath(currentWaypoint, pickupWp);
                         
-                        if (currentPath.Count > 0)
+                        if (currentPath.Count == 0)
                         {
-                            yield return StartCoroutine(FollowPath());
+                            currentPath = new List<Waypoint> { pickupWp };
                         }
+                        
+                        yield return StartCoroutine(FollowPath());
                         
                         Debug.Log("Returned to start. Cycle complete.");
                     }
@@ -149,13 +161,15 @@ public class CargoCubeController : MonoBehaviour
         
         while (pathIndex < currentPath.Count)
         {
+            if (pathIndex >= currentPath.Count) break;
+            
             if (IsObstacleAhead())
             {
                 currentState = State.WaitingForObstacle;
                 Debug.Log("Obstacle detected! Waiting...");
                 waitTime = 0f;
                 
-                while (IsObstacleAhead() && waitTime < maxWaitTime)
+                while (pathIndex < currentPath.Count && IsObstacleAhead() && waitTime < maxWaitTime)
                 {
                     yield return new WaitForSeconds(0.5f);
                     waitTime += 0.5f;
@@ -171,6 +185,7 @@ public class CargoCubeController : MonoBehaviour
                         yield break;
                     }
                     pathIndex = 0;
+                    continue;
                 }
                 else
                 {
